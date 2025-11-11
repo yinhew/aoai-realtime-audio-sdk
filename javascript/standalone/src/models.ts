@@ -262,7 +262,19 @@ export interface FunctionCallOutputItem {
   status?: ItemParamStatus;
 }
 
-export type Item = MessageItem | FunctionCallItem | FunctionCallOutputItem;
+export interface MCPCallItem {
+  type: "mcp_call";
+  id?: string;
+  approval_request_id: string | null;
+  arguments: string;
+  server_label: string;
+  name: string;
+  output: string | null;
+  error: string | null;
+  status?: ItemParamStatus;
+}
+
+export type Item = MessageItem | FunctionCallItem | FunctionCallOutputItem | MCPCallItem;
 
 export interface ItemCreateMessage extends ClientMessageBase {
   type: "conversation.item.create";
@@ -435,10 +447,21 @@ export interface ResponseFunctionCallOutputItem extends ResponseItemBase {
   output: string;
 }
 
+export interface ResponseMCPCallItem extends ResponseItemBase {
+  type: "mcp_call";
+  approval_request_id: string | null;
+  arguments: string;
+  server_label: string;
+  name: string;
+  output: string | null;
+  error: string | null;
+}
+
 export type ResponseItem =
   | ResponseMessageItem
   | ResponseFunctionCallItem
-  | ResponseFunctionCallOutputItem;
+  | ResponseFunctionCallOutputItem
+  | ResponseMCPCallItem;
 
 export interface ItemCreatedMessage extends ServerMessageBase {
   type: "conversation.item.created";

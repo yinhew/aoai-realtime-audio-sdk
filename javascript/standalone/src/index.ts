@@ -15,6 +15,7 @@ export {
   ErrorMessage,
   FunctionCallItem,
   FunctionCallOutputItem,
+  MCPCallItem,
   FunctionToolChoice,
   InputAudioBufferAppendMessage,
   InputAudioBufferClearedMessage,
@@ -66,6 +67,7 @@ export {
   ResponseFunctionCallArgumentsDoneMessage,
   ResponseFunctionCallItem,
   ResponseFunctionCallOutputItem,
+  ResponseMCPCallItem,
   ResponseIncompleteDetails,
   ResponseItem,
   ResponseItemAudioContentPart,
@@ -110,6 +112,7 @@ export { AccessToken, KeyCredential, TokenCredential } from "./util/auth";
 
 export {
   isFunctionCallItem,
+  isMCPCallItem,
   isMessageItem,
   LowLevelRTClient,
   RTAudioContent,
@@ -117,6 +120,7 @@ export {
   RTError,
   RTFunctionCallItem,
   RTInputAudioItem,
+  RTMCPCallItem,
   RTMessageContent,
   RTMessageItem,
   RTResponse,

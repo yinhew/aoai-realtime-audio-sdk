@@ -22,6 +22,7 @@ import {
   ResponseItemAudioContentPart,
   ResponseItemStatus,
   ResponseItemTextContentPart,
+  ResponseMCPCallItem,
   ResponseMessageItem,
   ResponseStatus,
   ResponseStatusDetails,
@@ -79,8 +80,10 @@ export class LowLevelRTClient {
           if (isServerMessageType(data)) {
             return validationSuccess(data);
           }
+          // Include the actual message type in the error for better logging
+          const messageType = data && typeof data === 'object' && 'type' in data ? data.type : 'unknown';
           return validationError<ServerMessageType>(
-            new Error("Invalid message type"),
+            new Error(`Invalid message type: ${messageType}`),
           );
         } catch (error) {
           return validationError<ServerMessageType>(
@@ -611,7 +614,86 @@ class RTFunctionCallItem implements AsyncIterable<string> {
 
 export type { RTFunctionCallItem };
 
-type RTOutputItem = RTMessageItem | RTFunctionCallItem;
+class RTMCPCallItem {
+  public type: "mcp_call" = "mcp_call";
+  private awaited: boolean = false;
+
+  private constructor(
+    public responseId: string,
+    private item: ResponseMCPCallItem,
+    public previousItemId: Optional<string>,
+    private queue: MessageQueueWithError<ServerMessageType>,
+  ) { }
+
+  static create(
+    responseId: string,
+    item: ResponseMCPCallItem,
+    previousItemId: Optional<string>,
+    queue: MessageQueueWithError<ServerMessageType>,
+  ): RTMCPCallItem {
+    return new RTMCPCallItem(responseId, item, previousItemId, queue);
+  }
+
+  get id(): string {
+    return this.item.id!;
+  }
+
+  get name(): string {
+    return this.item.name;
+  }
+
+  get serverLabel(): string {
+    return this.item.server_label;
+  }
+
+  get arguments(): string {
+    return this.item.arguments;
+  }
+
+  get approvalRequestId(): string | null {
+    return this.item.approval_request_id;
+  }
+
+  get output(): string | null {
+    return this.item.output;
+  }
+
+  get error(): string | null {
+    return this.item.error;
+  }
+
+  async waitForCompletion(): Promise<void> {
+    if (this.awaited) {
+      return;
+    }
+    this.awaited = true;
+    
+    while (true) {
+      const message = await this.queue.receive(
+        (m) =>
+          (m.type === "response.output_item.done" && m.item.id === this.id),
+      );
+      if (message === null) {
+        break;
+      } else if (message.type === "error") {
+        throw new RTError(message.error);
+      } else if (message.type === "response.output_item.done") {
+        if (message.item.type === "mcp_call") {
+          this.item = message.item;
+          break;
+        } else {
+          throw new Error("Unexpected item type");
+        }
+      } else {
+        throw new Error(`Unexpected message type: ${message.type}`);
+      }
+    }
+  }
+}
+
+export type { RTMCPCallItem };
+
+type RTOutputItem = RTMessageItem | RTFunctionCallItem | RTMCPCallItem;
 
 export function isMessageItem(item: RTOutputItem): item is RTMessageItem {
   return item.type === "message";
@@ -621,6 +703,12 @@ export function isFunctionCallItem(
   item: RTOutputItem,
 ): item is RTFunctionCallItem {
   return item.type === "function_call";
+}
+
+export function isMCPCallItem(
+  item: RTOutputItem,
+): item is RTMCPCallItem {
+  return item.type === "mcp_call";
 }
 
 class RTResponse implements AsyncIterable<RTOutputItem> {
@@ -671,64 +759,75 @@ class RTResponse implements AsyncIterable<RTOutputItem> {
   }
 
   [Symbol.asyncIterator](): AsyncIterator<RTOutputItem> {
-    return {
-      next: async (): Promise<IteratorResult<RTOutputItem>> => {
-        if (this.done) {
-          return { value: undefined, done: true };
-        }
-        const message = await this.queue.receive(
+    const nextFunction = async (): Promise<IteratorResult<RTOutputItem>> => {
+      if (this.done) {
+        return { value: undefined, done: true };
+      }
+      const message = await this.queue.receive(
+        (m) =>
+          (m.type === "response.done" && m.response.id === this.id) ||
+          (m.type === "response.output_item.added" &&
+            m.response_id === this.id),
+      );
+      if (message === null) {
+        return { value: undefined, done: true };
+      } else if (message.type === "error") {
+        throw new RTError(message.error);
+      } else if (message.type === "response.done") {
+        this.done = true;
+        this.response = message.response;
+        return { value: undefined, done: true };
+      } else if (message.type === "response.output_item.added") {
+        const created_message = await this.queue.receive(
           (m) =>
-            (m.type === "response.done" && m.response.id === this.id) ||
-            (m.type === "response.output_item.added" &&
-              m.response_id === this.id),
+            m.type === "conversation.item.created" &&
+            m.item.id === message.item.id,
         );
-        if (message === null) {
+        if (created_message === null) {
           return { value: undefined, done: true };
-        } else if (message.type === "error") {
-          throw new RTError(message.error);
-        } else if (message.type === "response.done") {
-          this.done = true;
-          this.response = message.response;
-          return { value: undefined, done: true };
-        } else if (message.type === "response.output_item.added") {
-          const created_message = await this.queue.receive(
-            (m) =>
-              m.type === "conversation.item.created" &&
-              m.item.id === message.item.id,
-          );
-          if (created_message === null) {
-            return { value: undefined, done: true };
-          } else if (created_message.type === "error") {
-            throw new RTError(created_message.error);
-          } else if (created_message.type === "conversation.item.created") {
-            if (created_message.item.type === "message") {
-              const messageItem = RTMessageItem.create(
-                this.id,
-                created_message.item,
-                created_message.previous_item_id,
-                this.queue,
-              );
-              return { value: messageItem, done: false };
-            } else if (created_message.item.type === "function_call") {
-              const functionCallItem = RTFunctionCallItem.create(
-                this.id,
-                created_message.item,
-                created_message.previous_item_id,
-                this.queue,
-              );
-              return { value: functionCallItem, done: false };
-            } else {
-              throw new Error(
-                `Unexpected item type (${created_message.item.type}.`,
-              );
-            }
+        } else if (created_message.type === "error") {
+          throw new RTError(created_message.error);
+        } else if (created_message.type === "conversation.item.created") {
+          if (created_message.item.type === "message") {
+            const messageItem = RTMessageItem.create(
+              this.id,
+              created_message.item,
+              created_message.previous_item_id,
+              this.queue,
+            );
+            return { value: messageItem, done: false };
+          } else if (created_message.item.type === "function_call") {
+            const functionCallItem = RTFunctionCallItem.create(
+              this.id,
+              created_message.item,
+              created_message.previous_item_id,
+              this.queue,
+            );
+            return { value: functionCallItem, done: false };
+          } else if (created_message.item.type === "mcp_call") {
+            const mcpCallItem = RTMCPCallItem.create(
+              this.id,
+              created_message.item,
+              created_message.previous_item_id,
+              this.queue,
+            );
+            return { value: mcpCallItem, done: false };
           } else {
-            throw new Error(`Unexpected message type: ${created_message.type}`);
+            // Ignore unexpected item types instead of breaking the connection
+            console.warn(`Ignoring unexpected item type: ${created_message.item.type}`);
+            // Recursively call this function to get the next valid item
+            return nextFunction();
           }
         } else {
-          throw new Error(`Unexpected message type: ${message.type}`);
+          throw new Error(`Unexpected message type: ${created_message.type}`);
         }
-      },
+      } else {
+        throw new Error(`Unexpected message type: ${message.type}`);
+      }
+    };
+
+    return {
+      next: nextFunction,
     };
   }
 }

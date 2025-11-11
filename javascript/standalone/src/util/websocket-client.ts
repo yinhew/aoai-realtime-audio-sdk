@@ -120,6 +120,13 @@ export class WebSocketClient<U, D> implements AsyncIterable<D> {
           self.messageQueue.push(message);
         }
       } else {
+        // Check if this is just an unknown message type (not a parsing error)
+        if (result.error.message.startsWith("Invalid message type:")) {
+          // Log and ignore unknown message types instead of closing the connection
+          console.warn("Received unknown message type - ignoring:", result.error.message);
+          return; // Simply ignore the message
+        }
+        // For other errors (like invalid JSON), still close the connection
         self.error = result.error;
         self.socket.close(1000, "Unexpected message received");
       }
