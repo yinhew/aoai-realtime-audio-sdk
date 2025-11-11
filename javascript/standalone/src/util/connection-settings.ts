@@ -83,6 +83,9 @@ export function voiceLiveSettings(
   } else {
     if (options.modelOrAgent.agentName) {
       uri.searchParams.set("agent-name", options.modelOrAgent.agentName);
+      if (options.modelOrAgent.agentVersion) {
+        uri.searchParams.set("agent-version", options.modelOrAgent.agentVersion);
+      }
     }
     if (options.modelOrAgent.agentId) {
       uri.searchParams.set("agent-id", options.modelOrAgent.agentId);
@@ -104,6 +107,12 @@ export function voiceLiveSettings(
     }
     if (options.modelOrAgent.threadId) {
       uri.searchParams.set("agent_thread_id", options.modelOrAgent.threadId);
+    }
+    if (options.modelOrAgent.conversationId) {
+      uri.searchParams.set(
+        "conversation-id",
+        options.modelOrAgent.conversationId,
+      );
     }
   }
   uri.pathname = options.path ?? "voice-live/realtime";

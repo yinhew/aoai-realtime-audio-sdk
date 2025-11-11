@@ -27,10 +27,12 @@ export interface RTAzureOpenAIOptions {
 export interface AzureAgentConfig {
   agentId?: string;
   agentName?: string;
+  agentVersion?: string;
   projectName?: string;
   agentConnectionString?: string;
   agentAuthenticationIdentityClientId?: string;
   threadId?: string;
+  conversationId?: string;
 }
 
 export interface RTVoiceAgentOptions {
