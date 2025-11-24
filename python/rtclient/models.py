@@ -389,7 +389,7 @@ class ResponseItemInputAudioContentPart(BaseModel):
 class ResponseItemInputImageContentPart(BaseModel):
     type: Literal["input_image"] = "input_image"
     image_url: str | None = None
-    detail: Literal["auto", "high"] = "auto"
+    detail: Literal["auto", "low", "high"] = "auto"
 
 
 class ResponseItemTextContentPart(BaseModel):
