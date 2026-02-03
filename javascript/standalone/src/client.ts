@@ -182,7 +182,7 @@ export class RTError extends Error {
 }
 
 export class RTVideoContent {
-  public type: "video_frame" = "video_frame";
+  public type: "video" = "video";
 
   private constructor(
     public responseId: string,
