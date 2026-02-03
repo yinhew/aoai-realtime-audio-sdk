@@ -126,7 +126,8 @@ export {
   RTMessageContent,
   RTMessageItem,
   RTResponse,
-  RTTextContent
+  RTTextContent,
+  RTVideoContent
 } from "./client";
 
 export { RTAzureOpenAIOptions, RTOpenAIOptions } from "./util/interfaces";
