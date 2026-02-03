@@ -53,6 +53,8 @@ export {
   ResponseAudioDoneMessage,
   ResponseAudioTranscriptDeltaMessage,
   ResponseAudioTranscriptDoneMessage,
+  ResponseVideoDeltaMessage,
+  ResponseVideoDoneMessage,
   ResponseBlendShapeMessage,
   ResponseCancelledDetails,
   ResponseCancelMessage,
